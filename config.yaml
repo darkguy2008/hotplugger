@@ -1,0 +1,9 @@
+virtual_machines:
+
+  windows:
+    socket: /home/dragon/vm/test/qmp-sock
+    ports:
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-1
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-2
+      - /devices/pci0000:00/0000:00:14.0/usb4/4-1
+      - /devices/pci0000:00/0000:00:14.0/usb4/4-2
