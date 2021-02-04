@@ -50,6 +50,30 @@ Welcome to Hotplugger! This app, as the name might tell you, is a combination of
 
 6. Have a coffee! ☕
 
+# Libvirt setup
+
+This is a work in progress, but here's some steps to get you started:
+
+1. Edit your VM's XML config like this:
+
+   1. ```xml
+      <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+        <name>QEMUGuest1</name>
+        <uuid>c7a5fdbd-edaf-9455-926a-d65c16db1809</uuid>
+        ...
+        <qemu:commandline>
+          <qemu:arg value='-chardev'/>
+          <qemu:arg value='socket,id=mon1,server,nowait,path=/tmp/my-vm-sock'/>
+          <qemu:arg value='-mon'/>
+          <qemu:arg value='chardev=mon1,mode=control,pretty=on'/>
+        </qemu:commandline>
+      </domain>
+      ```
+
+      Add the `xmlns` attribute and the QEMU commandline arguments like that. The `/tmp/my-vm-sock` is the name of an unix domain socket. You can use any, just make sure to also put the same path in the `config.yaml` file.
+
+2. If you get a permissions issue, edit `/etc/libvirt/qemu.conf` and add `security_driver = "none"`to it to fix apparmor being annoying about it.
+
 ## How it works
 
 1. The `udev` rule launches the script on *every* USB event. For each USB `add`/`remove` action there's around 3 to 5+ events. This allows the app to act at any step in the action lifecycle.
