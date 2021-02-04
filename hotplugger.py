@@ -146,7 +146,7 @@ def unplug():
         for rootKey, rootValue in vms.items():
             for k, v in rootValue.items():
                 for port in v['ports']:
-                    if port == devpath:
+                    if devpath.find(port) >= 0:
 
                         client = socket.socket(
                             socket.AF_UNIX, socket.SOCK_STREAM)
