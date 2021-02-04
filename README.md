@@ -50,6 +50,16 @@ Welcome to Hotplugger! This app, as the name might tell you, is a combination of
 
 6. Have a coffee! ☕
 
+## How it works
+
+1. The `udev` rule launches the script on *every* USB event. For each USB `add`/`remove` action there's around 3 to 5+ events. This allows the app to act at any step in the action lifecycle.
+2. In the first step it gets the kernel environment variables from `udev` and stores them in a temp file. In those variables, the `DEVPATH`, the `DEVNUM` (host address in QEMU, it seems to change and is sequential...) and the `BUSNUM` (bus address in QEMU) are captured. For the subsequent events, the following steps are run:
+   1. It requests QEMU through the Unix socket and the `info usbhost` QMP command the USB info from the host. This gives it an extra field: The host **port** where the device is also connected to. Since I got the `host` and `bus` addresses in the first event, I can use that to parse through the `info usbhost` command's output and find the **port** connected to the device.
+   2. If the port is found, using the `device_add` command, a new `usb-host` device is added using the USB `bus` and `port` we got in the previous step, and assigns it a predictable ID that it can use to unplug the device afterwards. To add this of course, the VM should have a `usb-xhci` device I think. Not sure if it's required or not, but I prefer to add it as I have USB 3.0 ports and devices.
+   3. The temp file is cleared once the `device_add` command has run successfully.
+
+Steps 2.1, 2.2 and 2.3 are run on every `udev` event. For instance, for an audio device it gets 3 or 4 events: One for the HID device, and two or so for the audio devices. My audio device (Corsair Void Elite Wireless) has both stereo audio and a communications device (mono audio, for mic) so for a single dongle like that I get those many events. Since these steps are ran on all the events, there's multiple chances to do the hotplug action. When one of them succeeds, the others will silently fail as QEMU will say that the same device ID is being used, so all is good.
+
 ## Troubleshooting
 
 If for some reason the app doesn't seem to work, try these methods:
