@@ -117,7 +117,7 @@ def plug():
                                             if line.find(f"Addr {hostaddr}") >= 0:
                                                 print('FOUND IN', line)
                                                 hostport_search = re.search(
-                                                    ".*Port.*?(\d*),", line, re.IGNORECASE)
+                                                    ".*Port.*?([\d\.]*),", line, re.IGNORECASE)
                                                 hostport = hostport_search.group(
                                                     1)
                                                 break
@@ -175,7 +175,7 @@ def unplug():
                                 if line.find(f"Addr {hostaddr}") >= 0:
                                     print('FOUND IN', line)
                                     hostport_search = re.search(
-                                        ".*Port.*?(\d*),", line, re.IGNORECASE)
+                                        ".*Port.*?([\d\.]*),", line, re.IGNORECASE)
                                     hostport = hostport_search.group(
                                         1)
                                     break
