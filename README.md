@@ -88,6 +88,7 @@ Steps 2.1, 2.2 and 2.3 are run on every `udev` event. For instance, for an audio
 
 If for some reason the app doesn't seem to work, try these methods:
 
+* Remove the `/tmp` folder where `hotplugger.py` is located
 * Reboot the computer
 * Reboot udev: `sudo udevadm control --reload-rules && sudo udevadm trigger`
 * View udev's logfile: `sudo service udev restart && sudo udevadm control --log-priority=debug && journalctl -f | grep -i hotplugger`
@@ -98,3 +99,10 @@ If for some reason the app doesn't seem to work, try these methods:
 A lot of work and sleepless nights were involved in this procedure, so if this app helps you in any way or another, please consider sending a small donation, it helps a lot in these tough times! 
 
 [<img src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif">](https://www.paypal.com/donate?hosted_button_id=H2YLSRHBQJ94G)
+
+## Changelog
+
+(2020-02-05)
+
+* Initial changelog writing
+* App was refactored a bit with improved python mad skillz. It also seems to be a bit more stable and robust, it doesn't hang much anymore and USB detection seems to work better. This is due to the fact that I added a stupid 1-second delay after all the USB UDEV events have gone through. Since there's no way to know when UDEV has "finished" sending all the events (and there could be a lot more) the commands being sent to QEMU to add the device will have to wait 1 second now. While it's not ideal, it should be enough to avoid a VM hanging up and I can live with that.

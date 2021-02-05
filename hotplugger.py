@@ -6,199 +6,162 @@ import fcntl
 import sys
 import yaml
 import json
-import socket
+import time
 import pprint
 from pathlib import Path
+from qemu import *
+
+def printp(dict):
+	pprint.pprint(dict, width=1)
+
+def sanitizeDevpath(devpath):
+	return devpath.replace('/', '_').replace(':', '_')
 
 
-def help():
-    print("")
-    print("Device plug/unplug helper script")
-    print("")
-    print("This should be run by an udev rules file you create that will trigger on every")
-    print("USB command. A sample rules file may be alongside this python script or in the")
-    print("README file, where you can find extra instructions.")
-    print("")
-    print("To test, run it with an environment variable (ACTION) as either 'add' or 'remove'")
+def loadConfig():
+	path = Path(__file__).parent / "config.yaml"
+	with open(path) as file:
+		rv = yaml.load(file, Loader=yaml.FullLoader)
+	return rv
 
 
-def read(socket):
-    f = ''
-    while True:
-        try:
-            obj = json.loads(f)
-            print('RECV <-', obj)
-            return obj
-        except:
-            f += socket.recv(1).decode()
+def savePortDeviceMetadata(metadata, devpath):
+	tmpFolderPath = Path(__file__).parent / "tmp"
+	if not os.path.exists(tmpFolderPath):
+		os.makedirs(tmpFolderPath)
+	usbdefPath = Path(__file__).parent / f"tmp/{sanitizeDevpath(devpath)}"
+	print(f"Saving port metadata to {usbdefPath} ...")
+	f = open(usbdefPath, "w")
+	f.write(json.dumps(metadata))
+	f.close()
 
 
-def send(socket, message):
-    print('SEND ->', message.strip())
-    socket.send(str.encode(message))
+def updatePortDeviceMetadata(metadata, filename):
+	tmpFolderPath = Path(__file__).parent / "tmp"
+	if not os.path.exists(tmpFolderPath):
+		os.makedirs(tmpFolderPath)
+	print(f"Saving port metadata to {filename} ...")
+	f = open(filename, "w")
+	f.write(json.dumps(metadata))
+	f.close()
+
+
+def loadPortDeviceMetadata(config, devpath):
+	for rootKey, rootValue in config.items():
+		for k, v in rootValue.items():
+			for port in v['ports']:
+				if devpath.find(port) >= 0:
+					print(f"Found {devpath} in port {port}")
+
+					tmpFolderPath = Path(__file__).parent / "tmp"
+					if not os.path.exists(tmpFolderPath):
+						os.makedirs(tmpFolderPath)
+					metadataFiles = [f for f in os.listdir(tmpFolderPath) if os.path.isfile(os.path.join(tmpFolderPath, f))]
+					print(f"Metadata files:")
+					printp(metadataFiles)
+
+					usbDefPathFile = sanitizeDevpath(devpath)
+					for f in metadataFiles:
+						metadataFilename = os.path.join(tmpFolderPath, f)
+						if usbDefPathFile.find(f) >= 0:
+							print(f"Found {devpath} in {metadataFilename}")
+							with open(metadataFilename) as metadataFile:
+								rv = json.loads(metadataFile.read())
+								rv["SOCKET"] = rootValue[k]['socket']
+								rv["FILENAME"] = metadataFilename
+								return rv
 
 
 def plug():
 
-    print('==================================================================')
-    print('PLUG')
-    print('==================================================================')
-    pprint.pprint(dict(os.environ), width=1)
-    print('==================================================================')
-    path = Path(__file__).parent / "config.yaml"
-    with open(path) as file:
-        vms = yaml.load(file, Loader=yaml.FullLoader)
-        devpath = os.environ['DEVPATH']
-        is_seat = os.getenv('TAGS') or ''
-        if is_seat == ':seat:':
-            is_seat = True
-        else:
-            is_seat = False
+	print('==================================================================')
+	print('PLUG')
+	print('==================================================================')
+	printp(dict(os.environ))
+	print('==================================================================')
+	config = loadConfig()
+	devpath = os.environ['DEVPATH'] 
+	is_usb_port = (os.getenv('TAGS') or '') == ':seat:'
+	print(f"Is USB Port? {is_usb_port}")
 
-        if is_seat:
-            tmpFolderPath = Path(__file__).parent / "tmp"
-            if not os.path.exists(tmpFolderPath):
-                os.makedirs(tmpFolderPath)
-            usbdefPath = Path(__file__).parent / \
-                f"tmp/{devpath.replace('/', '-')}"
-            f = open(usbdefPath, "w")
-            f.write(json.dumps(dict(os.environ)))
-            f.close()
-        else:
-            for rootKey, rootValue in vms.items():
-                for k, v in rootValue.items():
-                    for port in v['ports']:
-                        if devpath.find(port) >= 0:
+	if is_usb_port == True:
+		savePortDeviceMetadata(json.loads(json.dumps(dict(os.environ))), devpath)
+	else:
+		metadata = loadPortDeviceMetadata(config, devpath)
+		print(metadata)
 
-                            tmpFolderPath = Path(__file__).parent / "tmp"
-                            if not os.path.exists(tmpFolderPath):
-                                os.makedirs(tmpFolderPath)
-                            onlyfiles = [f for f in os.listdir(
-                                tmpFolderPath) if os.path.isfile(os.path.join(tmpFolderPath, f))]
+		qemu = QEMU()
+		qemu.connect(metadata["SOCKET"])
+		result = qemu.send({ "execute": "human-monitor-command", "arguments": { "command-line": "info usbhost" } })
+		usbhost = result['return']
+		print(usbhost)
 
-                            for f in onlyfiles:
-                                currentFile = f
-                                usbDefPathFile = devpath.replace('/', '-')
-                                if usbDefPathFile.find(f) >= 0:
-                                    envFilename = os.path.join(
-                                        tmpFolderPath, f)
+		hostport = 0
+		hostaddr = metadata['DEVNUM'].lstrip('0')
+		hostbus = metadata['BUSNUM'].lstrip('0')
+		print(f"Looking for USB Bus: {hostbus}, Addr {hostaddr} ...")
 
-                                    with open(envFilename) as input_file:
-                                        contents = input_file.read()
-                                        udevEnv = json.loads(contents)
-                                        print(udevEnv)
-                                    os.remove(envFilename)
+		for line in usbhost.splitlines():
+			if line.find(f"Bus {hostbus}") >= 0:
+				if line.find(f"Addr {hostaddr}") >= 0:
+					print('FOUND IN', line)
+					hostport_search = re.search(".*Port.*?([\d\.]*),", line, re.IGNORECASE)
+					hostport = hostport_search.group(1)
+					break
+		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
 
-                                    client = socket.socket(
-                                        socket.AF_UNIX, socket.SOCK_STREAM)
-                                    client.settimeout(.2)
-                                    client.connect(rootValue[k]['socket'])
-                                    data = read(client)
+		metadata["PORT"] = hostport
+		updatePortDeviceMetadata(metadata, metadata["FILENAME"])
 
-                                    send(
-                                        client, "{ \"execute\": \"qmp_capabilities\" }\n")
-                                    data = read(client)
+		if str(hostport) != "0":
+			time.sleep(1)
+			qemu.send({ "execute": "device_add", "arguments": { "driver": "usb-host", "hostbus": hostbus, "hostport": hostport, "id": f"device_BUS_{hostbus}_PORT_{hostport}_ADDR_{hostaddr}" } })
+			print("Device plugged in")
 
-                                    send(
-                                        client, "{ \"execute\": \"human-monitor-command\", \"arguments\": { \"command-line\": \"info usbhost\" } }")
-                                    data = read(client)
-                                    usbhost = data['return']
-                                    print(usbhost)
-
-                                    hostport = 0
-                                    hostaddr = udevEnv['DEVNUM'].lstrip('0')
-                                    hostbus = udevEnv['BUSNUM'].lstrip('0')
-                                    print('BUSNUM', hostbus)
-                                    print('HOSTADDR (DEVNUM)', hostaddr)
-
-                                    for line in usbhost.splitlines():
-                                        print('LINE', line)
-                                        if line.find(f"Bus {hostbus}") >= 0:
-                                            if line.find(f"Addr {hostaddr}") >= 0:
-                                                print('FOUND IN', line)
-                                                hostport_search = re.search(
-                                                    ".*Port.*?([\d\.]*),", line, re.IGNORECASE)
-                                                hostport = hostport_search.group(
-                                                    1)
-                                                break
-                                    print(hostbus, hostaddr, hostport)
-
-                                    # TODO: Don't do anything if hostport == 0. Somehow I couldn't get it working
-                                    cmd = f'{{ "execute": "device_add", "arguments": {{ "driver": "usb-host", "hostbus": "{hostbus}", "hostport": "{hostport}", "id": "device{hostbus}{hostport}" }} }}'
-                                    send(client, cmd)
-                                    data = read(client)
-                                    print("Device plugged in")
-
-                                    client.close()
-                                    break
-
-                            break
+		qemu.disconnect()
 
 
 def unplug():
 
-    print('UNPLUG')
-    path = Path(__file__).parent / "config.yaml"
-    with open(path) as file:
-        vms = yaml.load(file, Loader=yaml.FullLoader)
-        devpath = os.environ['DEVPATH']
+	print('==================================================================')
+	print('UNPLUG')
+	print('==================================================================')
+	printp(dict(os.environ))
+	print('==================================================================')
+	config = loadConfig()
+	devpath = os.environ['DEVPATH']
+	metadata = loadPortDeviceMetadata(config, devpath)
+	print(metadata)
 
-        for rootKey, rootValue in vms.items():
-            for k, v in rootValue.items():
-                for port in v['ports']:
-                    if devpath.find(port) >= 0:
+	is_usb_port = (os.getenv('DEVNUM') or '') != ''
+	print(f"Is USB Port? {is_usb_port}")
 
-                        client = socket.socket(
-                            socket.AF_UNIX, socket.SOCK_STREAM)
-                        client.settimeout(.2)
-                        client.connect(rootValue[k]['socket'])
-                        data = read(client)
+	if is_usb_port == True:
+		qemu = QEMU()
+		qemu.connect(metadata["SOCKET"])
+		result = qemu.send({ "execute": "human-monitor-command", "arguments": { "command-line": "info usbhost" } })
+		usbhost = result['return']
+		print(usbhost)
 
-                        send(client, "{ \"execute\": \"qmp_capabilities\" }\n")
-                        data = read(client)
+		hostport = metadata['PORT']
+		hostaddr = metadata['DEVNUM'].lstrip('0')
+		hostbus = metadata['BUSNUM'].lstrip('0')		
+		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
 
-                        send(
-                            client, "{ \"execute\": \"human-monitor-command\", \"arguments\": { \"command-line\": \"info usbhost\" } }")
-                        data = read(client)
-                        usbhost = data['return']
-                        print(usbhost)
+		time.sleep(1)
+		qemu.send({ "execute": "device_del", "arguments": { "id": f"device_BUS_{hostbus}_PORT_{hostport}_ADDR_{hostaddr}" } })
+		print("Device unplugged")
 
-                        hostport = 0
-                        hostaddr = udevEnv['DEVNUM'].lstrip('0')
-                        hostbus = udevEnv['BUSNUM'].lstrip('0')
-                        print('BUSNUM', hostbus)
-                        print('HOSTADDR (DEVNUM)', hostaddr)
-
-                        for line in usbhost.splitlines():
-                            print('LINE', line)
-                            if line.find(f"Bus {hostbus}") >= 0:
-                                if line.find(f"Addr {hostaddr}") >= 0:
-                                    print('FOUND IN', line)
-                                    hostport_search = re.search(
-                                        ".*Port.*?([\d\.]*),", line, re.IGNORECASE)
-                                    hostport = hostport_search.group(
-                                        1)
-                                    break
-
-                        print(hostbus, hostaddr, hostport)
-
-                        # TODO: Don't do anything if hostport == 0. Somehow I couldn't get it working
-                        # NOTE: For devices without ID see QOM path https://qemu.readthedocs.io/en/latest/interop/qemu-qmp-ref.html#qapidoc-1953
-                        # Can be retrieved with (qemu) qom-list /machine/peripheral-anon/device[0], etc...
-                        cmd = f'{{ "execute": "device_del", "arguments": {{ "id": "device{hostbus}{hostport}" }} }}'
-                        send(client, cmd)
-                        data = read(client)
-
-                        client.close()
-                        print("Device unplugged")
-
-                        break
-
+		qemu.disconnect()
 
 action = os.environ['ACTION']
 if action == 'add':
-    plug()
+	plug()
 elif action == 'remove':
-    unplug()
+	unplug()
 else:
-    help()
+	print("")
+	print("Device plug/unplug helper script")
+	print("")
+	print("This should be run by an udev rules file you create that will trigger on every")
+	print("USB command. For more info have a look at the README file.")
