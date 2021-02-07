@@ -150,6 +150,7 @@ def unplug():
 
 		time.sleep(1)
 		qemu.send({ "execute": "device_del", "arguments": { "id": f"device_BUS_{hostbus}_PORT_{hostport}_ADDR_{hostaddr}" } })
+		os.remove(metadata["FILENAME"])
 		print("Device unplugged")
 
 		qemu.disconnect()
