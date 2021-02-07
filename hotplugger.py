@@ -81,7 +81,7 @@ def plug():
 	print('==================================================================')
 	config = loadConfig()
 	devpath = os.environ['DEVPATH'] 
-	is_usb_port = (os.getenv('TAGS') or '') == ':seat:'
+	is_usb_port = (os.getenv('DEVNUM') or '') != '' and (os.getenv('BUSNUM') or '') != ''
 	print(f"Is USB Port? {is_usb_port}")
 
 	if is_usb_port == True:
