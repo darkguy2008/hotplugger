@@ -117,11 +117,12 @@ def plug():
 
 		print(f"Plugging USB device in port {hostport}...")
 		if hostport != '0':
-			time.sleep(1)
 			with QEMU(metadata["SOCKET"]) as qemu:
 				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={metadata['ID_PATH_TAG']}")
 				print("Device plugged in. Current USB devices on guest:")
 				print(qemu.hmp("info usb"))
+				if Path(metadata["FILENAME"]).exists():
+					os.remove(metadata["FILENAME"])
 
 
 def unplug():
@@ -149,11 +150,9 @@ def unplug():
 						usbhost = qemu.hmp("info usbhost")
 					print(usbhost)
 
-					time.sleep(1)
 					with QEMU(socket) as qemu:
 						qemu.hmp(f"device_del {os.environ['ID_PATH_TAG']}")
-						print(f"Device unplugged from {k}. Current USB devices on guest:")
-						time.sleep(1)
+						print(f"Device unplugged from {k}")
 						print(qemu.hmp("info usb"))
 						usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
 						if Path(usbDefPathFile).exists():
