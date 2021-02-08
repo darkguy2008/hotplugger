@@ -139,10 +139,9 @@ def unplug():
 	print(f"Is USB Port? {is_usb_port}")
 
 	if is_usb_port == True:
-
 		for rootKey, rootValue in config.items():
 			for k, v in rootValue.items():
-				socket = rootValue[k]['socket']				
+				socket = rootValue[k]['socket']
 				socketFile = Path(socket)
 				if socketFile.exists():
 					print(f"Connecting to QEMU at {socket}...")
