@@ -119,7 +119,7 @@ def plug():
 		if hostport != '0':
 			time.sleep(1)
 			with QEMU(metadata["SOCKET"]) as qemu:
-				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id=device_BUS_{hostbus}_PORT_{hostport}_ADDR_{hostaddr}")
+				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={metadata['ID_PATH_TAG']}")
 				print("Device plugged in. Current USB devices on guest:")
 				print(qemu.hmp("info usb"))
 
@@ -133,32 +133,31 @@ def unplug():
 	print('==================================================================')
 	config = loadConfig()
 	devpath = os.environ['DEVPATH']
-	metadata = loadPortDeviceMetadata(config, devpath)
-	if not metadata:
-		print(f"Metadata file for {devpath} not found")
-	else:
-		print(metadata)
 
 	is_usb_port = (os.getenv('DEVNUM') or '') != ''
 	print(f"Is USB Port? {is_usb_port}")
 
 	if is_usb_port == True:
-		print(f"Connecting to QEMU at {metadata['SOCKET']}...")
-		with QEMU(metadata["SOCKET"]) as qemu:
-			usbhost = qemu.hmp("info usbhost")
-		print(usbhost)
 
-		hostport = metadata['PORT']
-		hostaddr = metadata['DEVNUM'].lstrip('0')
-		hostbus = metadata['BUSNUM'].lstrip('0')
-		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
+		for rootKey, rootValue in config.items():
+			for k, v in rootValue.items():
+				socket = rootValue[k]['socket']				
+				socketFile = Path(socket)
+				if socketFile.exists():
+					print(f"Connecting to QEMU at {socket}...")
+					with QEMU(socket) as qemu:
+						usbhost = qemu.hmp("info usbhost")
+					print(usbhost)
 
-		time.sleep(1)
-		with QEMU(metadata["SOCKET"]) as qemu:
-			qemu.hmp(f"device_del device_BUS_{hostbus}_PORT_{hostport}_ADDR_{hostaddr}")
-
-		os.remove(metadata["FILENAME"])
-		print("Device unplugged")
+					time.sleep(1)
+					with QEMU(socket) as qemu:
+						qemu.hmp(f"device_del {os.environ['ID_PATH_TAG']}")
+						print(f"Device unplugged from {k}. Current USB devices on guest:")
+						time.sleep(1)
+						print(qemu.hmp("info usb"))
+						usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
+						if Path(usbDefPathFile).exists():
+							os.remove(usbDefPathFile)
 
 
 action = os.environ['ACTION']
