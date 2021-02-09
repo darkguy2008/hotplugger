@@ -80,7 +80,7 @@ def plug():
 	printp(dict(os.environ))
 	print('==================================================================')
 	config = loadConfig()
-	devpath = os.environ['DEVPATH'] 
+	devpath = os.environ['DEVPATH']
 	is_usb_port = (os.getenv('DEVNUM') or '') != '' and (os.getenv('BUSNUM') or '') != ''
 	print(f"Is USB Port? {is_usb_port}")
 
@@ -113,12 +113,15 @@ def plug():
 		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
 
 		metadata["PORT"] = hostport
+		device_tag = "".join(re.findall("[a-zA-Z0-9]+", metadata['ID_PATH_TAG']))
+		device_id = f"{device_tag}{hostbus}{hostaddr}"
 		updatePortDeviceMetadata(metadata, metadata["FILENAME"])
 
 		print(f"Plugging USB device in port {hostport}...")
 		if hostport != '0':
+			time.sleep(2)
 			with QEMU(metadata["SOCKET"]) as qemu:
-				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={metadata['ID_PATH_TAG']}")
+				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={device_id}")
 				print("Device plugged in. Current USB devices on guest:")
 				print(qemu.hmp("info usb"))
 				if Path(metadata["FILENAME"]).exists():
@@ -150,7 +153,9 @@ def unplug():
 					print(usbhost)
 
 					with QEMU(socket) as qemu:
-						qemu.hmp(f"device_del {os.environ['ID_PATH_TAG']}")
+						device_tag = "".join(re.findall("[a-zA-Z0-9]+", metadata['ID_PATH_TAG']))
+						device_id = f"{device_tag}{os.environ['BUSNUM']}{os.environ['DEVNUM']}"
+						qemu.hmp(f"device_del {device_id}")
 						print(f"Device unplugged from {k}")
 						print(qemu.hmp("info usb"))
 						usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
