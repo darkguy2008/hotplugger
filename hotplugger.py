@@ -22,6 +22,10 @@ def sanitizeDevpath(devpath):
 	return devpath.replace('/', '_').replace(':', '_')
 
 
+def sanitize(str):
+	return "".join(re.findall("[a-zA-Z0-9]+", str))
+
+
 def loadConfig():
 	with open(configFilename) as file:
 		return yaml.load(file, Loader=yaml.FullLoader)
@@ -112,14 +116,12 @@ def plug():
 					break
 		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
 
-		metadata["PORT"] = hostport
-		device_tag = "".join(re.findall("[a-zA-Z0-9]+", metadata['ID_PATH_TAG']))
-		device_id = f"{device_tag}{hostbus}{hostaddr}"
+		device_id = sanitize(metadata['DEVNAME'])
+		print(f"Device ID = {device_id}")
 		updatePortDeviceMetadata(metadata, metadata["FILENAME"])
 
-		print(f"Plugging USB device in port {hostport}...")
-		if hostport != '0':
-			time.sleep(2)
+		if hostport != 0:
+			print(f"Plugging USB device in port {hostport}...")
 			with QEMU(metadata["SOCKET"]) as qemu:
 				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={device_id}")
 				print("Device plugged in. Current USB devices on guest:")
@@ -138,29 +140,25 @@ def unplug():
 	config = loadConfig()
 	devpath = os.environ['DEVPATH']
 
-	is_usb_port = (os.getenv('DEVNUM') or '') != ''
-	print(f"Is USB Port? {is_usb_port}")
+	for rootKey, rootValue in config.items():
+		for k, v in rootValue.items():
+			socket = rootValue[k]['socket']
+			socketFile = Path(socket)
+			if socketFile.exists():
+				print(f"Connecting to QEMU at {socket}...")
+				with QEMU(socket) as qemu:
+					usbhost = qemu.hmp("info usbhost")
+				print(usbhost)
 
-	if is_usb_port == True:
-		for rootKey, rootValue in config.items():
-			for k, v in rootValue.items():
-				socket = rootValue[k]['socket']
-				socketFile = Path(socket)
-				if socketFile.exists():
-					print(f"Connecting to QEMU at {socket}...")
-					with QEMU(socket) as qemu:
-						usbhost = qemu.hmp("info usbhost")
-					print(usbhost)
-
-					with QEMU(socket) as qemu:
+				with QEMU(socket) as qemu:
 						device_tag = "".join(re.findall("[a-zA-Z0-9]+", metadata['ID_PATH_TAG']))
-						device_id = f"{device_tag}{os.environ['BUSNUM']}{os.environ['DEVNUM']}"
-						qemu.hmp(f"device_del {device_id}")
-						print(f"Device unplugged from {k}")
-						print(qemu.hmp("info usb"))
-						usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
-						if Path(usbDefPathFile).exists():
-							os.remove(usbDefPathFile)
+					device_id = sanitize(os.environ["DEVNAME"])
+					qemu.hmp(f"device_del {device_id}")
+					print(f"Device unplugged from {k}")
+					print(qemu.hmp("info usb"))
+					usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
+					if Path(usbDefPathFile).exists():
+						os.remove(usbDefPathFile)
 
 
 action = os.environ['ACTION']
