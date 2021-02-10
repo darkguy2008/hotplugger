@@ -120,10 +120,19 @@ def plug():
 		print(f"Device ID = {device_id}")
 		updatePortDeviceMetadata(metadata, metadata["FILENAME"])
 
+		guestbus = 0
 		if hostport != 0:
 			print(f"Plugging USB device in port {hostport}...")
-			with QEMU(metadata["SOCKET"]) as qemu:
-				qemu.hmp(f"device_add driver=usb-host,hostbus={hostbus},hostport={hostport},id={device_id}")
+
+			with QEMU(metadata["SOCKET"]) as qemu:				
+				while True:
+					result = qemu.hmp(f"device_add driver=usb-host,bus=xhci{guestbus}.0,hostbus={hostbus},hostport={hostport},id={device_id}")
+					if result.find("speed mismatch trying to attach usb device") >= 0:
+						guestbus += 1
+						qemu.hmp(f"device_del {device_id}")
+					else:
+						break
+
 				print("Device plugged in. Current USB devices on guest:")
 				print(qemu.hmp("info usb"))
 				if Path(metadata["FILENAME"]).exists():

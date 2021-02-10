@@ -27,6 +27,7 @@ class QEMU:
 		self.client.close()
 
 
+	# TODO: Do not return unless f is not empty
 	def read(self, socket):
 		f = ''
 		while True:
