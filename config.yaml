@@ -9,5 +9,3 @@ virtual_machines:
     ports:
       - /devices/pci0000:00/0000:00:14.0/usb3/3-3
       - /devices/pci0000:00/0000:00:14.0/usb3/3-4
-      - /devices/pci0000:00/0000:00:14.0/usb3/3-5
-      - /devices/pci0000:00/0000:00:14.0/usb3/3-6
