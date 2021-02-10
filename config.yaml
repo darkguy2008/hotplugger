@@ -1,9 +1,13 @@
 virtual_machines:
 
   windows:
-    socket: /home/dragon/vm/test/qmp-sock
+    socket: /home/user/vm/windows/qmp-sock
+    delay: 1
+    hubs:
+      - xhci0.0
+      - xhci1.0
     ports:
-      - /devices/pci0000:00/0000:00:14.0/usb3/3-1
-      - /devices/pci0000:00/0000:00:14.0/usb3/3-2
-      - /devices/pci0000:00/0000:00:14.0/usb4/4-1
-      - /devices/pci0000:00/0000:00:14.0/usb4/4-2
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-3
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-4
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-5
+      - /devices/pci0000:00/0000:00:14.0/usb3/3-6

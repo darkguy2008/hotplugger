@@ -41,15 +41,6 @@ def savePortDeviceMetadata(metadata, devpath):
 	f.close()
 
 
-def updatePortDeviceMetadata(metadata, filename):
-	if not os.path.exists(tmpFolderPath):
-		os.makedirs(tmpFolderPath)
-	print(f"Saving port metadata to {filename} ...")
-	f = open(filename, "w")
-	f.write(json.dumps(metadata))
-	f.close()
-
-
 def loadPortDeviceMetadata(config, devpath):
 	for rootKey, rootValue in config.items():
 		for k, v in rootValue.items():
@@ -73,6 +64,8 @@ def loadPortDeviceMetadata(config, devpath):
 								rv = json.loads(metadataFile.read())
 								rv["SOCKET"] = rootValue[k]['socket']
 								rv["FILENAME"] = metadataFilename
+								rv["HUBS"] = rootValue[k]['hubs']
+								rv["DELAY"] = rootValue[k]['delay']
 								return rv
 
 
@@ -116,27 +109,25 @@ def plug():
 					break
 		print(f"Found USB Bus: {hostbus}, Addr {hostaddr}, Port {hostport}")
 
-		device_id = sanitize(metadata['DEVNAME'])
-		print(f"Device ID = {device_id}")
-		updatePortDeviceMetadata(metadata, metadata["FILENAME"])
-
-		guestbus = 0
 		if hostport != 0:
 			print(f"Plugging USB device in port {hostport}...")
 
-			with QEMU(metadata["SOCKET"]) as qemu:				
-				while True:
-					result = qemu.hmp(f"device_add driver=usb-host,bus=xhci{guestbus}.0,hostbus={hostbus},hostport={hostport},id={device_id}")
+			with QEMU(metadata["SOCKET"]) as qemu:
+
+				device_id = sanitize(metadata['DEVNAME'])
+				print(f"Device ID = {device_id}")
+				for guesthub in metadata["HUBS"]:
+					time.sleep(int(metadata["DELAY"]))
+					result = qemu.hmp(f"device_add driver=usb-host,bus={guesthub},hostbus={hostbus},hostport={hostport},id={device_id}")
 					if result.find("speed mismatch trying to attach usb device") >= 0:
-						guestbus += 1
 						qemu.hmp(f"device_del {device_id}")
 					else:
+						print(f"Device plugged in on hub {guesthub}. Current USB devices on guest:")
+						print(qemu.hmp("info usb"))
 						break
 
-				print("Device plugged in. Current USB devices on guest:")
-				print(qemu.hmp("info usb"))
-				if Path(metadata["FILENAME"]).exists():
-					os.remove(metadata["FILENAME"])
+			if Path(metadata["FILENAME"]).exists():
+				os.remove(metadata["FILENAME"])
 
 
 def unplug():
