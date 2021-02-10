@@ -16,6 +16,7 @@ class QEMU:
 	def __enter__(self):
 		self.client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		self.client.settimeout(1)
+		self.client.setblocking(1)
 		self.client.connect(self.socket)
 		self.read(self.client)
 		self.qmp({ "execute": "qmp_capabilities" })
