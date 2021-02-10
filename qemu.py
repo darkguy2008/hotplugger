@@ -27,16 +27,19 @@ class QEMU:
 		self.client.close()
 
 
-	# TODO: Do not return unless f is not empty
 	def read(self, socket):
 		f = ''
+		obj = None
 		while True:
+			f += self.client.recv(1).decode()
 			try:
-				obj = json.loads(f.strip())
-				print('RECV <-', obj)
-				return obj
+				if len(f.strip()) > 0:
+					obj = json.loads(f.strip())
+					print('RECV <-', obj)
+					break
 			except:
-				f += self.client.recv(1).decode()
+				pass
+		return obj
 
 
 	def qmp(self, command):
