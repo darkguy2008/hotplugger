@@ -139,26 +139,25 @@ def unplug():
 	print('==================================================================')
 	config = loadConfig()
 	devpath = os.environ['DEVPATH']
+	if (os.getenv('DEVNAME') or '') != '':
+		for rootKey, rootValue in config.items():
+			for k, v in rootValue.items():
+				socket = rootValue[k]['socket']
+				socketFile = Path(socket)
+				if socketFile.exists():
+					print(f"Connecting to QEMU at {socket}...")
+					with QEMU(socket) as qemu:
+						usbhost = qemu.hmp("info usbhost")
+					print(usbhost)
 
-	for rootKey, rootValue in config.items():
-		for k, v in rootValue.items():
-			socket = rootValue[k]['socket']
-			socketFile = Path(socket)
-			if socketFile.exists():
-				print(f"Connecting to QEMU at {socket}...")
-				with QEMU(socket) as qemu:
-					usbhost = qemu.hmp("info usbhost")
-				print(usbhost)
-
-				with QEMU(socket) as qemu:
-						device_tag = "".join(re.findall("[a-zA-Z0-9]+", metadata['ID_PATH_TAG']))
-					device_id = sanitize(os.environ["DEVNAME"])
-					qemu.hmp(f"device_del {device_id}")
-					print(f"Device unplugged from {k}")
-					print(qemu.hmp("info usb"))
-					usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
-					if Path(usbDefPathFile).exists():
-						os.remove(usbDefPathFile)
+					with QEMU(socket) as qemu:
+						device_id = sanitize(os.environ["DEVNAME"])
+						qemu.hmp(f"device_del {device_id}")
+						print(f"Device unplugged from {k}")
+						print(qemu.hmp("info usb"))
+						usbDefPathFile = os.path.join(tmpFolderPath, sanitizeDevpath(devpath))
+						if Path(usbDefPathFile).exists():
+							os.remove(usbDefPathFile)
 
 
 action = os.environ['ACTION']
