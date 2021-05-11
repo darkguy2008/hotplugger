@@ -6,7 +6,7 @@ Welcome to Hotplugger! This app, as the name might tell you, is a combination of
 
 * `monitor.py` and `hotplugger.py` require **Python 3**
 
-* Only tested with QEMU 5.0.0. Untested with older or newer versions.
+* Only tested with QEMU 5.0.0 and 6.0.0. Untested with other versions.
 
 * Your QEMU machine must expose a QMP socket like this. The `path=` argument is important, we'll use that filename. It can be either relative or absolute, just make sure you can find and have access to it.
 
