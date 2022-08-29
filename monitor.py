@@ -1,17 +1,15 @@
 #!/usr/bin/python3
-import os
+import sys
 import signal
 import subprocess
 
 print("")
 print("Using both an USB 3.0 and an USB 2.0 device (could be a thumb drive,")
-print("an audio device or any other simple USB device), plug and unplug the")
+print("an audio device or any other simple USB device), plug or unplug the")
 print("device in the ports that you are interested for VM passthrough.")
 print("")
 print("Press Control + C when finished. The app will then print the device")
 print("path of the USB ports. Also make sure that 'udevadm' is installed.")
-print("")
-input("Press ENTER to continue or abort with CTRL+C...")
 print("")
 print("Monitoring USB ports...")
 
@@ -39,29 +37,52 @@ while True:
         listout.append(line)
 
 proc.wait()
-# print(listout)
 
 ######################################
 # This gets an unique list of DEVPATHs
 ######################################
 
+
+
 # function to get unique values
 
+def unique(input_list):
+    
+    # leave only unique entries
+    return list(dict.fromkeys(input_list))
 
-def unique(list1):
 
-    # intilize a null list
-    unique_list = []
+
+# function to remove the netries that are not useful for udev
+
+def remove_unnecessary(input_list):
+
+    # copy to avoid modifying the input list
+    output_list = list(input_list)
 
     # traverse for all elements
-    for x in list1:
-        # check if exists in unique_list or not
-        if x not in unique_list:
-            unique_list.append(x)
+    for element in output_list:
+        # remove long entries as they are not useful for udev
+        for potential_prefix in output_list:     
+            if element != potential_prefix and element.startswith(potential_prefix):
+                output_list.remove(element)
 
-    return unique_list
+    return output_list
 
 
-uniq = unique(listout)
-stringlist = [x.decode('utf-8') for x in uniq]
-print(*stringlist, sep='')
+if __name__ == '__main__':
+    listout = [x.decode('utf-8').strip() for x in listout]
+    uniq = unique(listout)
+    filtered = remove_unnecessary(uniq)
+
+    print("\nFound these USB ports:")
+    print(*filtered, sep='\n')
+    print("")
+
+    orig_stdout = sys.stdout
+    with open("usb.portlist", "w+") as f:
+        sys.stdout = f
+        print(*filtered, sep='\n')
+        sys.stdout = orig_stdout
+    
+    print("Results were saved to 'usb.portlist'.")
